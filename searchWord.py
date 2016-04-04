@@ -2,14 +2,14 @@
 
 import requests
 import time
-import math
-import pylab as pl
+import random
+import pylab as plt
 import numpy as np
 
 
 class BasicSearch(object):
-    def __init__(self, catalog_url, debug=False):
-        self.catalog_url = catalog_url
+    def __init__(self, debug=False):
+        self.catalog_url = 'http://missourievergreen.org/eg/opac/results' // TODO parameterize this
         self.debug = debug
         self.search_params = {
         }
@@ -44,8 +44,8 @@ class BasicSearch(object):
         return "BasicSearch"
 
 class TitleSearch(BasicSearch):
-    def __init__(self, catalog_url):
-        BasicSearch.__init__(self, catalog_url)
+    def __init__(self):
+        BasicSearch.__init__(self)
         self.search_params = {
             'qtype': 'title'
         }
@@ -54,8 +54,8 @@ class TitleSearch(BasicSearch):
         return "TitleSearch"
 
 class BasicMetabibSearch(BasicSearch):
-    def __init__(self, catalog_url):
-        BasicSearch.__init__(self, catalog_url)
+    def __init__(self):
+        BasicSearch.__init__(self)
         self.search_params = {
             'modifier': 'metabib'
         }
@@ -64,8 +64,8 @@ class BasicMetabibSearch(BasicSearch):
         return "BasicMetabibSearch"
 
 class TitleMetabibSearch(BasicSearch):
-    def __init__(self, catalog_url):
-        BasicSearch.__init__(self, catalog_url)
+    def __init__(self):
+        BasicSearch.__init__(self)
         self.search_params = {
             'qtype': 'title',
             'modifier': 'metabib'
@@ -87,7 +87,7 @@ def gen_random_words(count):
         "hasDictionaryDef": "true",
         "includePartOfSpeech": "noun",
         "minDictionaryCount": "3",
-        "minCorpusCount": "100",
+        "minCorpusCount": "10000",
         "minLength": 6,
         "useCannonical": "true",
         "limit": count,
@@ -98,6 +98,7 @@ def gen_random_words(count):
     words = []
     for el in xrange(len(r.json())):
         words.append(r.json()[el]['word'])
+    random.shuffle(words)
     print "fetching", len(words), "words\n", words
     for word in words:
         yield word
@@ -110,37 +111,61 @@ def simulate_searches(num_trials):
     :param num_trials: number of random words to use per search type
     :return: dictionary of search times by search type
     """
-    catalog_url = 'http://missourievergreen.org/eg/opac/results'
     search_types = [
-        BasicSearch(catalog_url),
-        BasicMetabibSearch(catalog_url),
-        TitleSearch(catalog_url),
-        TitleMetabibSearch(catalog_url)
+        BasicSearch(),
+        BasicMetabibSearch(),
+        TitleSearch(),
+        TitleMetabibSearch()
     ]
     word_list = gen_random_words(num_trials * len(search_types))
-    all_results = {}
+    results = []
     for search in search_types:
-        results_for_type = []
         for i in range(num_trials):
-            results_for_type.append(search.timed_search(word_list.next()))
-        all_results[str(search)] = results_for_type
-    return all_results
+            word = word_list.next()
+            search_time = search.timed_search(word)
+            results.append((str(search), word, search_time))
+    return results
 
-results = simulate_searches(30)
-def plot_simulation(results):
-    averages = {}
-    for i in results.keys():
-        averages[i] = sum(results[i])/len(results[i])
+def autolabel(rects):
+        for rect in rects:
+            height = rect.get_height()
+            plt.text(rect.get_x()+rect.get_width()/2., 1.05*height, '%.2f'%height,
+                    ha='center', va='bottom')
 
+def plot_average_times(results):
+    # Sort results so the bars go in order
+    results.sort(None,key=lambda x: x[0]+str(x[2]))
+
+    results_by_type = {}
+    for i in results:
+        try:
+            results_by_type[i[0]].append(i[2])
+        except KeyError:
+            results_by_type[i[0]] = [i[2]]
+
+    averages = []
+    for x in results_by_type.keys():
+        averages.append([x,sum(results_by_type[x])/len(results_by_type[x])])
+
+    averages.sort(None, key=lambda x: x[1])
     print averages
-    X = np.arange(len(averages))
-    pl.bar(X, averages.values(), align='center', width=0.5)
-    pl.xticks(X, averages.keys())
-    ymax = max(averages.values()) + 1
-    pl.ylim(0, ymax)
-    pl.show()
 
-plot_simulation(results)
-#
-# for i in range(3):
-#     searchCatalog(word.next())
+    # Format the bars and their spacing
+    X = np.arange(len(averages))
+    plt.title("Comparison of search times by type")
+    rects1 =plt.bar(X, [x[1] for x in averages], align='center', width=0.5)
+    plt.xticks(X, [x[0] for x in averages])
+    ymax = max([x[1] for x in averages]) + 1
+    plt.ylim(0, ymax)
+    plt.ylabel('Average search time in seconds')
+    plt.xlabel('Search type')
+
+    autolabel(rects1)
+
+    plt.show()
+
+
+results = simulate_searches(20)
+
+plot_average_times(results)
+
