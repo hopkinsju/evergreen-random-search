@@ -80,7 +80,7 @@ def gen_random_words(count):
     We get a list so that we can save on API calls and return one at a time
     Returns an array of words or None if API returns non-200 status code
     """
-    wordnik_api_key = '***REMOVED***'
+    wordnik_api_key = '' // NOTE Gonna need to put this into a config file or parameter
     wordnik_url = 'http://api.wordnik.com/v4/words.json/randomWords'
 
     wordnik_params = {
